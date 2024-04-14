@@ -6,6 +6,20 @@ from librosa.core import piptrack
 import librosa
 import pandas as pd
 
+def wiener_entropy(s_npy,  n_fft = 2048):
+    """ Computes Wiener entropy of wav """
+    ent = librosa.feature.spectral_flatness(y = s_npy, n_fft = n_fft)
+    return np.var(ent), np.mean(ent), np.max(ent), ent
+
+def spectral_contrast(s_npy, n_fft=2048):
+    contrast = librosa.feature.spectral_contrast(y=s_npy, n_fft=n_fft)
+    return np.mean(contrast), np.var(contrast), contrast
+
+def goodness_of_pitch(s_npy, samplerate):
+    mfcc = librosa.feature.mfcc(y=s_npy, sr=samplerate)
+    mfcc_delta = librosa.feature.delta(mfcc)
+    return np.max(mfcc_delta)
+
 def compute_pitch(s_npy, samplerate,  win_length = 220):
     """ Computes pitch of wav sound """
     pitches, magnitudes = piptrack(y=s_npy, sr = samplerate, fmin= 2000, fmax=8000, win_length = win_length)
@@ -53,9 +67,10 @@ def compute_max_freq(line):
 
 def compute_all_features(calls, samplerate, freq):
     """ Computes all the features above for list of traces and corresponding wavs """
-    features = ['slope', 'frequency', 'pitch', 'amplitude', 
-                                            'wiener_entropy', 'zero_crossings', 'duration', 
-                                            'height', 'asymmetry']
+    features = ['slope', 'frequency', 'pitch', 'amplitude', 'wiener_entropy',
+                'zero_crossings', 'duration', 'height', 'asymmetry',
+                 'entropy_variance', 'mean_entropy', 'maximum_entropy', 
+                 'mean_contrast','var_contrast', 'goodness_of_pitch']
     fail_count = 0
     for newcol in features:
         calls[newcol]=np.nan
@@ -75,6 +90,18 @@ def compute_all_features(calls, samplerate, freq):
             calls.at[index,'duration'] = compute_duration(call)
             calls.at[index,'height'] = compute_height(t)
             calls.at[index,'asymmetry'] = compute_asymmetry(t)
+
+            ent_var, mean_ent, max_ent,  ent = wiener_entropy(s, n_fft=256) 
+            calls.at[index,'entropy_variance'] = ent_var
+            calls.at[index,'mean_entropy'] = mean_ent
+            calls.at[index,'maximum_entropy'] = max_ent
+
+            mean_contrast, var_contrast, contrast= spectral_contrast(s, n_fft=256)    
+            calls.at[index,'mean_contrast'] = mean_contrast
+            calls.at[index,'var_contrast'] = var_contrast
+
+            gop = goodness_of_pitch(s, samplerate)
+            calls.at[index,'goodness_of_pitch'] = gop
         except:
             fail_count += 1
     
