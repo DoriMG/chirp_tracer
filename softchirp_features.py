@@ -17,8 +17,12 @@ def wiener_entropy(s_npy,  samplerate, n_fft = 512, low_pass = 2000, high_pass =
     return np.var(ent), np.mean(ent), np.max(ent), ent
 
 
-def spectral_contrast(s_npy, n_fft=2048):
-    contrast = librosa.feature.spectral_contrast(y=s_npy, n_fft=n_fft)
+def spectral_contrast(s_npy,  samplerate, n_fft = 512, low_pass = 2000, high_pass = 8000):
+    freqs = librosa.fft_frequencies(sr=samplerate, n_fft=n_fft)
+    inc = np.logical_and(freqs>low_pass, freqs<high_pass)
+    
+    S, phase = librosa.magphase(librosa.stft(s_npy,n_fft=n_fft, hop_length=256))
+    contrast = librosa.feature.spectral_contrast(S=S[inc,:])
     return np.mean(contrast), np.var(contrast), contrast
 
 def goodness_of_pitch(s_npy, samplerate):
@@ -72,7 +76,7 @@ def compute_slope(line):
 def compute_max_freq(line):
     return np.max(line[:,1])
 
-def compute_all_features(calls, samplerate, freq, n_fft=256):
+def compute_all_features(calls, samplerate, freq, n_fft=512, low_pass = 2000, high_pass= 8000):
     """ Computes all the features above for list of traces and corresponding wavs """
     features = ['slope', 'frequency', 'pitch', 'amplitude', 
                                             'wiener_entropy', 'zero_crossings', 'duration', 
@@ -86,9 +90,8 @@ def compute_all_features(calls, samplerate, freq, n_fft=256):
             s = call['wav']
             t = np.asarray(list(zip(list(range(1,call['final_trace'].shape[0]+1)),call['final_trace']) ))
             
-                
+            # original 8 variables    
             calls.at[index,'pitch'] = compute_pitch(s, samplerate)
-            calls.at[index,'amplitude']  = compute_amplitude(s)
             calls.at[index,'wiener_entropy']  = compute_wiener_ent(s)
             calls.at[index,'zero_crossings'] = compute_zero_crossing(s)
             calls.at[index,'slope'] = compute_slope(t)
@@ -96,13 +99,16 @@ def compute_all_features(calls, samplerate, freq, n_fft=256):
             calls.at[index,'duration'] = compute_duration(call)
             calls.at[index,'height'] = compute_height(t)
             calls.at[index,'asymmetry'] = compute_asymmetry(t)
+
+            calls.at[index,'amplitude']  = compute_amplitude(s)
             
-            ent_var, mean_ent, max_ent,  ent = wiener_entropy(s,samplerate, n_fft=512, low_pass = 2000, high_pass = 8000) 
+            # better way of calculating wiener entropy
+            ent_var, mean_ent, max_ent,  ent = wiener_entropy(s,samplerate, n_fft=n_fft, low_pass = low_pass, high_pass = high_pass) 
             calls.at[index,'entropy_variance'] = ent_var
             calls.at[index,'mean_entropy'] = mean_ent
             calls.at[index,'maximum_entropy'] = max_ent
 
-            mean_contrast, var_contrast, contrast= spectral_contrast(s, n_fft=256)    
+            mean_contrast, var_contrast, contrast= spectral_contrast(s,n_fft=n_fft, low_pass = low_pass, high_pass = high_pass) 
             calls.at[index,'mean_contrast'] = mean_contrast
             calls.at[index,'var_contrast'] = var_contrast
 
